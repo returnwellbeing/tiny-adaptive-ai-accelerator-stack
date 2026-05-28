@@ -5,3 +5,5 @@ transformers
 accelerate
 torch
 gguf
+iree-base-compiler
+iree-base-runtime

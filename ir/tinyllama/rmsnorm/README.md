@@ -17,6 +17,45 @@ Source workload:
 workloads/tinyllama/rmsnorm_jax.py
 ```
 
+## Summarize
+
+Use the StableHLO summary tool to inspect operation counts, tensor type
+hints, and workload-level interpretation:
+
+```bash
+python tools/summarize_stablehlo.py ir/tinyllama/rmsnorm/rmsnorm.stablehlo.mlir
+```
+
+The summary includes static estimates for FLOP-equivalent work, minimum
+DRAM bytes, arithmetic intensity, and approximate systolic array usage.
+For this RMSNorm workload, no `dot_general` is present, so systolic array
+utilization is reported as not applicable / approximately zero.
+
+## Run with IREE
+
+Compile the StableHLO MLIR to an IREE VM flatbuffer:
+
+```bash
+iree-compile \
+  --iree-hal-target-backends=llvm-cpu \
+  ir/tinyllama/rmsnorm/rmsnorm.stablehlo.mlir \
+  -o /tmp/rmsnorm.vmfb
+```
+
+Run the compiled module with simple all-ones inputs:
+
+```bash
+iree-run-module \
+  --module=/tmp/rmsnorm.vmfb \
+  --function=main \
+  --input=1x16x64xf32=1 \
+  --input=64xf32=1
+```
+
+The first input is `hidden_states`; the second input is the RMSNorm
+`weight`. With both inputs set to ones, the output should remain close to
+ones because `rsqrt(mean(square(1)) + 1e-6)` is approximately `1`.
+
 ## StableHLO Walkthrough
 
 The generated IR implements:
