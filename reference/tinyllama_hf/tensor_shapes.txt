@@ -1,0 +1,130 @@
+TinyLlama tensor shapes
+=======================
+
+Reference model
+---------------
+
+Model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+Architecture: LlamaForCausalLM
+
+Core config:
+
+- vocab_size = 32000
+- hidden_size = 2048
+- intermediate_size = 5632
+- num_hidden_layers = 22
+- num_attention_heads = 32
+- num_key_value_heads = 4
+- head_dim = 64
+- max_position_embeddings = 2048
+- rms_norm_eps = 1e-5
+
+Important distinction:
+
+- `hidden_size = 2048` is the real model hidden dimension.
+- `head_dim = 64` is also a real TinyLlama number.
+- The current minimal JAX workloads use `hidden = 64` as a reduced
+  hidden dimension for fast StableHLO/IREE experiments.
+- Therefore, current workloads preserve operation structure, not full
+  TinyLlama production tensor sizes.
+
+Reference layer shapes
+----------------------
+
+Input hidden states:
+
+```text
+hidden_states: [batch, seq, 2048]
+```
+
+RMSNorm:
+
+```text
+input:  [batch, seq, 2048]
+weight: [2048]
+output: [batch, seq, 2048]
+```
+
+Attention projections:
+
+```text
+q_proj: [2048] -> [2048]
+k_proj: [2048] -> [256]
+v_proj: [2048] -> [256]
+o_proj: [2048] -> [2048]
+```
+
+The `k_proj` and `v_proj` output size is:
+
+```text
+num_key_value_heads * head_dim = 4 * 64 = 256
+```
+
+MLP projections:
+
+```text
+gate_proj: [2048] -> [5632]
+up_proj:   [2048] -> [5632]
+down_proj: [5632] -> [2048]
+```
+
+Current minimal workload shapes
+-------------------------------
+
+RMSNorm workload:
+
+```text
+workloads/tinyllama/rmsnorm_jax.py
+
+hidden_states: [1, 16, 64]
+weight:        [64]
+output:        [1, 16, 64]
+```
+
+Linear workload:
+
+```text
+workloads/tinyllama/linear_jax.py
+
+lhs:    [1, 16, 64]
+rhs:    [64, 256]
+output: [1, 16, 256]
+```
+
+For this reduced Linear workload, the parser interprets the dot as:
+
+```text
+M = batch * seq = 16
+K = 64
+N = 256
+```
+
+SwiGLU workload:
+
+```text
+workloads/tinyllama/swiglu_jax.py
+
+gate:   [1, 16, 256]
+up:     [1, 16, 256]
+output: [1, 16, 256]
+```
+
+MLP workload:
+
+```text
+workloads/tinyllama/mlp_jax.py
+
+hidden_states: [1, 16, 64]
+gate_weight:   [64, 256]
+up_weight:     [64, 256]
+down_weight:   [256, 64]
+output:        [1, 16, 64]
+```
+
+For this reduced MLP workload, the parser interprets the dots as:
+
+```text
+gate projection: M = 16, K = 64,  N = 256
+up projection:   M = 16, K = 64,  N = 256
+down projection: M = 16, K = 256, N = 64
+```

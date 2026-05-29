@@ -1,0 +1,20 @@
+module @jit_swiglu attributes {mhlo.num_partitions = 1 : i32, mhlo.num_replicas = 1 : i32} {
+  func.func public @main(%arg0: tensor<1x16x256xf32>, %arg1: tensor<1x16x256xf32>) -> (tensor<1x16x256xf32> {jax.result_info = "result"}) {
+    %0 = call @silu(%arg0) : (tensor<1x16x256xf32>) -> tensor<1x16x256xf32>
+    %1 = stablehlo.multiply %0, %arg1 : tensor<1x16x256xf32>
+    return %1 : tensor<1x16x256xf32>
+  }
+  func.func private @silu(%arg0: tensor<1x16x256xf32>) -> tensor<1x16x256xf32> {
+    %0 = stablehlo.negate %arg0 : tensor<1x16x256xf32>
+    %1 = stablehlo.exponential %0 : tensor<1x16x256xf32>
+    %cst = stablehlo.constant dense<1.000000e+00> : tensor<f32>
+    %2 = stablehlo.broadcast_in_dim %cst, dims = [] : (tensor<f32>) -> tensor<1x16x256xf32>
+    %3 = stablehlo.add %2, %1 : tensor<1x16x256xf32>
+    %cst_0 = stablehlo.constant dense<1.000000e+00> : tensor<f32>
+    %4 = stablehlo.broadcast_in_dim %cst_0, dims = [] : (tensor<f32>) -> tensor<1x16x256xf32>
+    %5 = stablehlo.divide %4, %3 : tensor<1x16x256xf32>
+    %6 = stablehlo.multiply %arg0, %5 : tensor<1x16x256xf32>
+    return %6 : tensor<1x16x256xf32>
+  }
+}
+

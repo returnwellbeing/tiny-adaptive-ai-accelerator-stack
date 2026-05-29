@@ -17,6 +17,7 @@ def classify_op(op: str) -> str:
         "chlo.square",
         "stablehlo.add",
         "stablehlo.subtract",
+        "stablehlo.negate",
         "stablehlo.multiply",
         "stablehlo.divide",
         "stablehlo.rsqrt",
@@ -362,8 +363,8 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
         print("  - A good backend should fuse reduction-adjacent elementwise ops where possible.")
         print("  - Useful accelerator questions: reduction latency, vector width, memory bandwidth, fusion.")
     else:
-        print("  - No dominant GEMM or reduction pattern detected.")
-        print("  - Useful accelerator questions depend on the dominant op classes above.")
+        print("  - Elementwise-only workloads are usually bandwidth and fusion sensitive.")
+        print("  - Useful accelerator questions: vector width, fusion, memory traffic, activation latency.")
 
 
 def main() -> None:

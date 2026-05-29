@@ -1,0 +1,152 @@
+TinyLlama layer mapping
+=======================
+
+Narrative path:
+
+```text
+HF Transformer Reference
+-> Minimal JAX Reproduction
+-> StableHLO
+-> IREE
+-> Hardware Insight
+```
+
+The files below connect Hugging Face TinyLlama modules to small JAX
+workloads and generated StableHLO artifacts.
+
+Implemented mappings
+--------------------
+
+LlamaRMSNorm
+
+```text
+HF module:
+  LlamaRMSNorm
+
+Reference locations:
+  input_layernorm
+  post_attention_layernorm
+  final norm
+
+Minimal JAX:
+  workloads/tinyllama/rmsnorm_jax.py
+
+StableHLO:
+  ir/tinyllama/rmsnorm/rmsnorm.stablehlo.mlir
+
+Hardware view:
+  reduction-bound
+  elementwise-heavy
+  bandwidth/reduction sensitive
+```
+
+Linear projection
+
+```text
+HF modules:
+  q_proj
+  k_proj
+  v_proj
+  o_proj
+  gate_proj
+  up_proj
+  down_proj
+
+Minimal JAX:
+  workloads/tinyllama/linear_jax.py
+
+StableHLO:
+  ir/tinyllama/linear/linear.stablehlo.mlir
+
+Key StableHLO op:
+  stablehlo.dot_general
+
+Hardware view:
+  compute-heavy
+  GEMM-centric
+  systolic-array relevant
+```
+
+LlamaMLP / SwiGLU
+
+```text
+HF module:
+  LlamaMLP
+
+Reference expression:
+  down_proj(silu(gate_proj(x)) * up_proj(x))
+
+Minimal JAX:
+  workloads/tinyllama/mlp_jax.py
+
+StableHLO:
+  ir/tinyllama/mlp/mlp.stablehlo.mlir
+
+Internal primitive:
+  workloads/tinyllama/swiglu_jax.py
+  ir/tinyllama/swiglu/swiglu.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dot_general
+  stablehlo.multiply
+  stablehlo.exponential
+  stablehlo.divide
+
+Hardware view:
+  GEMM-heavy
+  elementwise-heavy
+  projection matmuls are systolic-array relevant
+  SwiGLU gating is bandwidth/fusion sensitive
+
+Status:
+  implemented
+```
+
+Planned mappings
+----------------
+
+LlamaMLP full-size variant
+
+```text
+HF module:
+  LlamaMLP
+
+Reference expression:
+  down_proj(silu(gate_proj(x)) * up_proj(x))
+
+Minimal JAX:
+  workloads/tinyllama/mlp_jax.py
+
+Full reference shapes:
+  hidden_size = 2048
+  intermediate_size = 5632
+
+Status:
+  pending full-size shape reproduction
+```
+
+LlamaAttention
+
+```text
+HF module:
+  LlamaAttention
+
+Subparts:
+  q_proj
+  k_proj
+  v_proj
+  rotary embedding
+  attention score matmul
+  softmax
+  attention value matmul
+  o_proj
+
+Minimal JAX:
+  pending
+
+StableHLO:
+  pending
+
+Status:
+  pending
+```
