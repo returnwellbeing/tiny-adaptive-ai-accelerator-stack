@@ -10,6 +10,12 @@ OP_PATTERN = re.compile(r'"?((?:stablehlo|chlo)\.[a-zA-Z0-9_]+)"?')
 TENSOR_PATTERN = re.compile(r'tensor<([^>]+)>')
 ARG_PATTERN = re.compile(r'%arg\d+: tensor<([^>]+)>')
 DOT_CONTRACTING_PATTERN = re.compile(r'contracting_dims\s*=\s*\[([^\]]*)\]\s*x\s*\[([^\]]*)\]')
+FLOW_HINT_OPS = {
+    "stablehlo.dot_general",
+    "stablehlo.reshape",
+    "stablehlo.transpose",
+    "stablehlo.broadcast_in_dim",
+}
 
 
 def classify_op(op: str) -> str:
@@ -78,12 +84,21 @@ def summarize_stablehlo(path: Path) -> None:
     tensor_counts = Counter(tensors)
     estimates = estimate_costs(text, op_counts)
     dot_generals = extract_dot_generals(text)
+    flow_hints = extract_tensor_flow_hints(text)
     tags = detect_workload_tags(class_counts, op_counts)
 
     print("=" * 80)
     print("StableHLO Summary")
     print("=" * 80)
     print(f"File: {path}")
+    print()
+
+    print("[Workload Signature]")
+    print(f"  Inputs     {format_tensor_list(find_function_inputs(text))}")
+    print(f"  Outputs    {format_tensor_list(find_function_outputs(text))}")
+    print(f"  dot_general ops {op_counts['stablehlo.dot_general']}")
+    print(f"  layout ops      {class_counts['shape/layout']}")
+    print(f"  reduction ops   {class_counts['reduction']}")
     print()
 
     print("[Operation Counts]")
@@ -116,6 +131,14 @@ def summarize_stablehlo(path: Path) -> None:
             print(f"    rhs    tensor<{dot['rhs']}>")
             print(f"    output tensor<{dot['output']}>")
             print(f"    GEMM interpretation: M={dot['m']} K={dot['k']} N={dot['n']}")
+
+    if flow_hints:
+        print()
+        print("[Tensor Flow Hints]")
+        for hint in flow_hints:
+            print(f"  {hint['op']}")
+            print(f"    inputs  {format_tensor_list(hint['inputs'])}")
+            print(f"    output  tensor<{hint['output']}>")
 
     print()
     print("[Detected Workload Tags]")
@@ -164,7 +187,7 @@ def estimate_costs(text: str, op_counts: Counter) -> dict:
             if dot is not None:
                 flops += 2 * dot["m"] * dot["k"] * dot["n"]
 
-    input_tensors = ARG_PATTERN.findall(text)
+    input_tensors = find_function_inputs(text)
     output_tensors = find_function_outputs(text)
     min_bytes = sum(tensor_num_bytes(t) or 0 for t in input_tensors + output_tensors)
 
@@ -196,6 +219,31 @@ def extract_dot_generals(text: str) -> list[dict]:
         if dot is not None:
             dots.append(dot)
     return dots
+
+
+def extract_tensor_flow_hints(text: str) -> list[dict]:
+    hints = []
+    for line in text.splitlines():
+        op_match = OP_PATTERN.search(line)
+        if op_match is None:
+            continue
+
+        op = op_match.group(1)
+        if op not in FLOW_HINT_OPS:
+            continue
+
+        tensor_types = TENSOR_PATTERN.findall(line)
+        if len(tensor_types) < 2:
+            continue
+
+        hints.append(
+            {
+                "op": op,
+                "inputs": tensor_types[:-1],
+                "output": tensor_types[-1],
+            }
+        )
+    return hints
 
 
 def parse_dot_general_line(line: str) -> dict | None:
@@ -251,9 +299,11 @@ def detect_workload_tags(class_counts: Counter, op_counts: Counter) -> list[str]
     if op_counts["stablehlo.dot_general"] > 0:
         tags.append("GEMM-heavy")
     if class_counts["reduction"] > 0:
-        tags.append("reduction-bound")
+        tags.append("reduction-heavy")
     if class_counts["elementwise"] >= max(class_counts["compute-heavy"], class_counts["reduction"], 1):
         tags.append("elementwise-heavy")
+    if class_counts["shape/layout"] > 0:
+        tags.append("layout-sensitive")
     if not tags:
         tags.append("unclassified")
     return tags
@@ -278,6 +328,19 @@ def find_function_outputs(text: str) -> list[str]:
             if output_match is not None:
                 return TENSOR_PATTERN.findall(output_match.group(1))
     return []
+
+
+def find_function_inputs(text: str) -> list[str]:
+    for line in text.splitlines():
+        if line.strip().startswith("func.func public @main"):
+            return ARG_PATTERN.findall(line)
+    return []
+
+
+def format_tensor_list(tensor_types: list[str]) -> str:
+    if not tensor_types:
+        return "none"
+    return ", ".join(f"tensor<{tensor_type}>" for tensor_type in tensor_types)
 
 
 def tensor_num_bytes(tensor_type: str) -> int | None:

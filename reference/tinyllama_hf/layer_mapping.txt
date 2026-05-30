@@ -102,6 +102,33 @@ Status:
   implemented
 ```
 
+LlamaAttention QKV projection
+
+```text
+HF modules:
+  q_proj
+  k_proj
+  v_proj
+
+Minimal JAX:
+  workloads/tinyllama/qkv_jax.py
+
+StableHLO:
+  ir/tinyllama/qkv/qkv.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dot_general
+  stablehlo.reshape
+
+Hardware view:
+  GEMM-heavy
+  layout-sensitive
+  grouped-query attention shape preparation
+
+Status:
+  implemented projection-only workload
+```
+
 Planned mappings
 ----------------
 
@@ -142,11 +169,11 @@ Subparts:
   o_proj
 
 Minimal JAX:
-  pending
+  workloads/tinyllama/qkv_jax.py for projection-only preparation
 
 StableHLO:
-  pending
+  ir/tinyllama/qkv/qkv.stablehlo.mlir for projection-only preparation
 
 Status:
-  pending
+  pending full attention and KV cache update workloads
 ```

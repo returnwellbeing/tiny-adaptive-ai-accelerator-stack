@@ -128,3 +128,34 @@ gate projection: M = 16, K = 64,  N = 256
 up projection:   M = 16, K = 64,  N = 256
 down projection: M = 16, K = 256, N = 64
 ```
+
+QKV projection workload:
+
+```text
+workloads/tinyllama/qkv_jax.py
+
+hidden_states: [1, 16, 2048]
+q_weight:      [2048, 2048]
+k_weight:      [2048, 256]
+v_weight:      [2048, 256]
+
+q:             [1, 16, 32, 64]
+k:             [1, 16, 4, 64]
+v:             [1, 16, 4, 64]
+```
+
+For the current QKV workload:
+
+```text
+num_heads = 32
+num_key_value_heads = 4
+head_dim = 64
+```
+
+The parser interprets the dots as:
+
+```text
+q projection: M = 16, K = 2048, N = 2048
+k projection: M = 16, K = 2048, N = 256
+v projection: M = 16, K = 2048, N = 256
+```
