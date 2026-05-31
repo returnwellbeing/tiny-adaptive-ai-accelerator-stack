@@ -48,13 +48,25 @@ is not just math. It involves:
 The model layer produces new K/V tensors. The runtime decides how those
 tensors are stored, reused, and presented to the attention kernel.
 
+For Llama-style RoPE:
+
+```text
+new K is RoPE-applied before the cache write
+new V is projected but not RoPE-applied
+```
+
+The cache should not store raw `hidden_states`, and it should not store
+raw K before RoPE. The runtime boundary should treat cached K as already
+position-encoded.
+
 ## Prefill Boundary
 
 During prefill:
 
 ```text
 input tokens: many
-new K/V span: [B, S, num_kv_heads, head_dim]
+new RoPE-applied K span: [B, S, num_kv_heads, head_dim]
+new projected V span:    [B, S, num_kv_heads, head_dim]
 cache update: write S positions
 attention pattern: causal [S x S]
 ```
@@ -75,7 +87,8 @@ During decode:
 
 ```text
 input token: one
-new K/V: [B, 1, num_kv_heads, head_dim]
+new RoPE-applied K: [B, 1, num_kv_heads, head_dim]
+new projected V:    [B, 1, num_kv_heads, head_dim]
 cache update: write one position
 attention pattern: [1 x cache_length]
 ```
@@ -87,6 +100,8 @@ Runtime concerns:
 - avoid unnecessary cache copies
 - keep cache layout friendly for repeated reads
 - minimize per-token latency
+- apply RoPE only to the newly generated K at `cache_position`
+- do not apply RoPE again to previously cached K
 
 Decode is often dominated by small batch size, dependency chain latency,
 and KV cache bandwidth.

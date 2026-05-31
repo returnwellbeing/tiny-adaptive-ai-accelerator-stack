@@ -68,7 +68,7 @@ hidden_states
 -> q_proj, k_proj, v_proj
 -> reshape into heads
 -> apply rotary position embedding to q and k
--> write k/v into cache positions for this prompt span
+-> write RoPE-applied k and projected v into cache positions for this prompt span
 -> compute causal self-attention over prompt tokens
 -> o_proj
 ```
@@ -106,7 +106,7 @@ new hidden_state
 -> reshape into heads
 -> apply rotary position embedding at cache_position
 -> read previous K/V cache
--> append or update current K/V at cache_position
+-> append or update current RoPE-applied K and projected V at cache_position
 -> attention over [past tokens + current token]
 -> o_proj
 ```
@@ -120,6 +120,26 @@ scores: [B, num_heads, 1, cache_length]
 Decode is latency sensitive because each token depends on the previous
 token. KV cache read bandwidth and cache update granularity become
 visible bottlenecks.
+
+Important RoPE/cache rule:
+
+```text
+Q path: hidden_state -> q_proj -> RoPE -> attention score
+K path: hidden_state -> k_proj -> RoPE -> K cache write
+V path: hidden_state -> v_proj -> V cache write
+```
+
+KV cache should not store raw `hidden_states`.
+
+K cache should not store raw K before RoPE. K cache should store
+RoPE-applied key states.
+
+V cache stores projected value states. V is not RoPE-applied.
+
+In decode mode, previously cached K already includes positional
+encoding. Only the newly generated K should receive RoPE using the
+current `cache_position`; previously cached K should not receive RoPE
+again.
 
 ## KV Cache Shape
 

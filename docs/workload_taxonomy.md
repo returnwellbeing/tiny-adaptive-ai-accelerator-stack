@@ -112,6 +112,30 @@ Hardware/runtime view:
 Attention should be split into smaller workloads rather than implemented
 as a full decoder block immediately.
 
+### RoPE Preparation
+
+Representative files:
+
+```text
+workloads/tinyllama/rope_jax.py
+ir/tinyllama/rope/rope.stablehlo.mlir
+```
+
+StableHLO/runtime character:
+
+- applies to Q and K only
+- no `stablehlo.dot_general`
+- uses slice, negate, concatenate, broadcast, multiply, and add
+- layout + elementwise heavy
+
+KV cache rule:
+
+```text
+K cache stores RoPE-applied key states.
+V cache stores projected value states.
+Previously cached K should not receive RoPE again during decode.
+```
+
 ### Prefill Attention
 
 Prefill processes multiple prompt tokens at once.

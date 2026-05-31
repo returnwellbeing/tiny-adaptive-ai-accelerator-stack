@@ -129,6 +129,38 @@ Status:
   implemented projection-only workload
 ```
 
+Llama rotary embedding / apply_rotary_pos_emb
+
+```text
+HF module/function:
+  LlamaRotaryEmbedding
+  apply_rotary_pos_emb
+
+Minimal JAX:
+  workloads/tinyllama/rope_jax.py
+
+StableHLO:
+  ir/tinyllama/rope/rope.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.slice
+  stablehlo.negate
+  stablehlo.concatenate
+  stablehlo.broadcast_in_dim
+  stablehlo.multiply
+  stablehlo.add
+
+Hardware view:
+  elementwise-heavy
+  layout-sensitive
+  applies to Q and K only
+  K cache stores RoPE-applied key states
+  V cache stores projected value states
+
+Status:
+  implemented RoPE-only workload
+```
+
 Planned mappings
 ----------------
 
