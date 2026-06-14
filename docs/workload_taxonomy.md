@@ -164,6 +164,13 @@ avoid physically materializing repeated K/V when possible
 
 Prefill processes multiple prompt tokens at once.
 
+Representative files:
+
+```text
+workloads/tinyllama/attention_scores_prefill_jax.py
+ir/tinyllama/attention_scores_prefill/attention_scores_prefill.stablehlo.mlir
+```
+
 StableHLO/runtime character:
 
 - QKV projection is GEMM-heavy
@@ -172,6 +179,17 @@ StableHLO/runtime character:
 - causal mask is applied across `[S, S]`
 - softmax introduces reduction and elementwise operations
 - KV cache is written for the prompt span
+
+Attention-score matmul:
+
+```text
+Q @ K^T / sqrt(head_dim)
+[B, heads, S, D] x [B, heads, S, D]
+-> [B, heads, S, S]
+```
+
+This is activation x activation `dot_general`, unlike projection
+workloads that are activation x weight.
 
 Hardware/runtime view:
 

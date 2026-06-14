@@ -10,6 +10,7 @@ OP_PATTERN = re.compile(r'"?((?:stablehlo|chlo)\.[a-zA-Z0-9_]+)"?')
 TENSOR_PATTERN = re.compile(r'tensor<([^>]+)>')
 ARG_PATTERN = re.compile(r'%arg\d+: tensor<([^>]+)>')
 DOT_CONTRACTING_PATTERN = re.compile(r'contracting_dims\s*=\s*\[([^\]]*)\]\s*x\s*\[([^\]]*)\]')
+DOT_BATCHING_PATTERN = re.compile(r'batching_dims\s*=\s*\[([^\]]*)\]\s*x\s*\[([^\]]*)\]')
 FLOW_HINT_OPS = {
     "stablehlo.dot_general",
     "stablehlo.reshape",
@@ -130,7 +131,10 @@ def summarize_stablehlo(path: Path) -> None:
             print(f"    lhs    tensor<{dot['lhs']}>")
             print(f"    rhs    tensor<{dot['rhs']}>")
             print(f"    output tensor<{dot['output']}>")
-            print(f"    GEMM interpretation: M={dot['m']} K={dot['k']} N={dot['n']}")
+            print(
+                f"    GEMM interpretation: batch={dot['batch']} "
+                f"M={dot['m']} K={dot['k']} N={dot['n']}"
+            )
 
     if flow_hints:
         print()
@@ -185,7 +189,7 @@ def estimate_costs(text: str, op_counts: Counter) -> dict:
         elif op == "stablehlo.dot_general":
             dot = parse_dot_general_line(line)
             if dot is not None:
-                flops += 2 * dot["m"] * dot["k"] * dot["n"]
+                flops += 2 * dot["batch"] * dot["m"] * dot["k"] * dot["n"]
 
     input_tensors = find_function_inputs(text)
     output_tensors = find_function_outputs(text)
@@ -271,17 +275,36 @@ def parse_dot_general_line(line: str) -> dict | None:
             lhs_contract_dim = lhs_dims[0]
             rhs_contract_dim = rhs_dims[0]
 
+    lhs_batch_dims = []
+    rhs_batch_dims = []
+    batching_match = DOT_BATCHING_PATTERN.search(line)
+    if batching_match is not None:
+        lhs_batch_dims = parse_dim_list(batching_match.group(1))
+        rhs_batch_dims = parse_dim_list(batching_match.group(2))
+
     k = lhs_shape[lhs_contract_dim]
     if rhs_shape[rhs_contract_dim] != k:
         return None
 
-    n = output_shape[-1]
-    m = product(output_shape[:-1])
+    batch = product([lhs_shape[dim] for dim in lhs_batch_dims])
+    lhs_free_dims = [
+        dim
+        for dim in range(len(lhs_shape))
+        if dim not in lhs_batch_dims and dim != lhs_contract_dim
+    ]
+    rhs_free_dims = [
+        dim
+        for dim in range(len(rhs_shape))
+        if dim not in rhs_batch_dims and dim != rhs_contract_dim
+    ]
+    m = product([lhs_shape[dim] for dim in lhs_free_dims])
+    n = product([rhs_shape[dim] for dim in rhs_free_dims])
 
     return {
         "lhs": lhs,
         "rhs": rhs,
         "output": output,
+        "batch": batch,
         "m": m,
         "k": k,
         "n": n,
@@ -300,7 +323,10 @@ def detect_workload_tags(class_counts: Counter, op_counts: Counter) -> list[str]
         tags.append("GEMM-heavy")
     if class_counts["reduction"] > 0:
         tags.append("reduction-heavy")
-    if class_counts["elementwise"] >= max(class_counts["compute-heavy"], class_counts["reduction"], 1):
+    if (
+        class_counts["elementwise"] >= 2
+        and class_counts["elementwise"] > max(class_counts["compute-heavy"], class_counts["reduction"])
+    ):
         tags.append("elementwise-heavy")
     if class_counts["shape/layout"] > 0:
         tags.append("layout-sensitive")
@@ -313,10 +339,13 @@ def estimate_systolic_utilization(dot_generals: list[dict]) -> str:
     if not dot_generals:
         return "not applicable / ~0% (no dot_general)"
 
-    dot = max(dot_generals, key=lambda item: item["m"] * item["n"] * item["k"])
+    dot = max(dot_generals, key=lambda item: item["batch"] * item["m"] * item["n"] * item["k"])
     if dot["m"] < 16:
         return f"shape-limited: M={dot['m']} may underutilize tall systolic arrays"
-    return f"GEMM-centric: M={dot['m']} N={dot['n']} K={dot['k']} can use systolic arrays"
+    return (
+        f"GEMM-centric: batch={dot['batch']} M={dot['m']} "
+        f"N={dot['n']} K={dot['k']} can use systolic arrays"
+    )
 
 
 def find_function_outputs(text: str) -> list[str]:
@@ -419,7 +448,8 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
     print()
     print("  Hardware/runtime note:")
     if has_dot:
-        print("  - Linear layers are typically GEMM-centric and map naturally to systolic arrays.")
+        print("  - dot_general workloads are GEMM-like and can map to systolic arrays.")
+        print("  - Operand provenance distinguishes projections from activation x activation attention matmuls.")
         print("  - Useful accelerator questions: tile sizes, array utilization, data reuse, memory bandwidth.")
     elif has_reduction:
         print("  - RMSNorm is typically bandwidth/reduction sensitive, not peak-GEMM limited.")

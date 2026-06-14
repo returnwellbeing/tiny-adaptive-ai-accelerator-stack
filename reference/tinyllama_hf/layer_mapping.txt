@@ -187,6 +187,33 @@ Status:
   implemented repeat_kv-only workload
 ```
 
+Prefill attention score matmul
+
+```text
+HF attention step:
+  query_states @ key_states.transpose(-2, -1)
+  scale by sqrt(head_dim)
+
+Minimal JAX:
+  workloads/tinyllama/attention_scores_prefill_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_scores_prefill/attention_scores_prefill.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dot_general
+  stablehlo.broadcast_in_dim
+  stablehlo.divide
+
+Hardware view:
+  batched activation x activation GEMM
+  score storage grows quadratically with sequence length
+  causal mask and softmax are intentionally separate workloads
+
+Status:
+  implemented prefill score-only workload
+```
+
 Planned mappings
 ----------------
 

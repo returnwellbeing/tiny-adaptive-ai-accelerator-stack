@@ -180,3 +180,22 @@ num_repeats = 32 / 4 = 8
 
 The cache remains compact at `num_key_value_heads`. Repetition is for
 attention computation, not cache storage.
+
+Prefill attention score workload:
+
+```text
+workloads/tinyllama/attention_scores_prefill_jax.py
+
+q:      [1, 8, 16, 8]
+k:      [1, 8, 16, 8]
+scores: [1, 8, 16, 16]
+```
+
+The batched dot interpretation is:
+
+```text
+batch = 1 * 8 heads = 8
+M = query_seq = 16
+K = head_dim = 8
+N = key_seq = 16
+```

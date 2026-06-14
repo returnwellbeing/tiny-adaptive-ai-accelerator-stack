@@ -86,6 +86,17 @@ For prefill, attention score shape is conceptually:
 scores: [B, num_heads, S, S]
 ```
 
+The score computation is:
+
+```text
+scores = Q @ K^T / sqrt(head_dim)
+```
+
+This is a batched activation x activation matmul. It differs from QKV
+projection, where the second operand is a model weight. Causal-mask
+application and softmax occur after score computation and are kept as
+separate tracing workloads.
+
 The causal mask is visible in the reference model as a framework-level
 attention mask. In a minimal accelerator model, this should become an
 explicit input or a generated static mask when shapes are fixed.
