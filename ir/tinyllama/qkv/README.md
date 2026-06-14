@@ -69,12 +69,13 @@ k projection: M=16 K=2048 N=256
 v projection: M=16 K=2048 N=256
 ```
 
-Then the projection outputs are reshaped into head-aware layouts:
+Then the projection outputs are reshaped and transposed into the
+Hugging Face attention layout `[B, heads, S, head_dim]`:
 
 ```text
-q: [1, 16, 32, 64]
-k: [1, 16, 4, 64]
-v: [1, 16, 4, 64]
+q: [1, 32, 16, 64]
+k: [1, 4, 16, 64]
+v: [1, 4, 16, 64]
 ```
 
 The smaller K/V head count mirrors grouped-query attention in TinyLlama.

@@ -10,8 +10,8 @@ def rotate_half(x):
 
 
 def apply_rope(q, k, cos, sin):
-    cos = cos[None, :, None, :]
-    sin = sin[None, :, None, :]
+    cos = cos[None, None, :, :]
+    sin = sin[None, None, :, :]
 
     q_rotated = (q * cos) + (rotate_half(q) * sin)
     k_rotated = (k * cos) + (rotate_half(k) * sin)
@@ -25,8 +25,8 @@ def main():
     num_kv_heads = 2
     head_dim = 8
 
-    q = jnp.ones((batch, seq, num_heads, head_dim), dtype=jnp.float32)
-    k = jnp.ones((batch, seq, num_kv_heads, head_dim), dtype=jnp.float32)
+    q = jnp.ones((batch, num_heads, seq, head_dim), dtype=jnp.float32)
+    k = jnp.ones((batch, num_kv_heads, seq, head_dim), dtype=jnp.float32)
     cos = jnp.ones((seq, head_dim), dtype=jnp.float32)
     sin = jnp.ones((seq, head_dim), dtype=jnp.float32)
 

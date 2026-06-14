@@ -47,8 +47,8 @@ head_dim = 8
 Input and output:
 
 ```text
-hidden_states: [1, 16, 2, 8]
-output:        [1, 16, 8, 8]
+hidden_states: [1, 2, 16, 8]
+output:        [1, 8, 16, 8]
 ```
 
 The output head count is:
@@ -77,8 +77,8 @@ arithmetic. This is a pure layout/expansion workload.
 The KV cache should remain compact:
 
 ```text
-K cache: [B, cache_length, num_kv_heads, head_dim]
-V cache: [B, cache_length, num_kv_heads, head_dim]
+K cache: [B, num_kv_heads, cache_length, head_dim]
+V cache: [B, num_kv_heads, cache_length, head_dim]
 ```
 
 Do not store repeated K/V heads in the cache. Repeating them would

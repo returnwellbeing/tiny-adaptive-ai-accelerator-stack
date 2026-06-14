@@ -46,12 +46,12 @@ k_proj: [B, S, 2048] x [2048, 256]  -> [B, S, 256]
 v_proj: [B, S, 2048] x [2048, 256]  -> [B, S, 256]
 ```
 
-After reshape:
+After reshape and transpose into the Hugging Face attention layout:
 
 ```text
-q: [B, S, 32, 64]
-k: [B, S, 4, 64]
-v: [B, S, 4, 64]
+q: [B, 32, S, 64]
+k: [B, 4, S, 64]
+v: [B, 4, S, 64]
 ```
 
 The smaller number of KV heads is grouped-query attention. At attention
@@ -171,15 +171,15 @@ indexing or attention-kernel logic.
 A practical explicit cache tensor shape for this project is:
 
 ```text
-k_cache: [B, max_seq, num_key_value_heads, head_dim]
-v_cache: [B, max_seq, num_key_value_heads, head_dim]
+k_cache: [B, num_key_value_heads, max_seq, head_dim]
+v_cache: [B, num_key_value_heads, max_seq, head_dim]
 ```
 
 For TinyLlama reference sizes:
 
 ```text
-k_cache: [B, max_seq, 4, 64]
-v_cache: [B, max_seq, 4, 64]
+k_cache: [B, 4, max_seq, 64]
+v_cache: [B, 4, max_seq, 64]
 ```
 
 For current small JAX workloads, equivalent toy shapes might use:

@@ -23,6 +23,9 @@ def qkv_projection(hidden_states, q_weight, k_weight, v_weight, head_dim=64):
     q = jnp.reshape(q, (batch, seq, num_heads, head_dim))
     k = jnp.reshape(k, (batch, seq, num_kv_heads, head_dim))
     v = jnp.reshape(v, (batch, seq, num_kv_heads, head_dim))
+    q = jnp.transpose(q, (0, 2, 1, 3))
+    k = jnp.transpose(k, (0, 2, 1, 3))
+    v = jnp.transpose(v, (0, 2, 1, 3))
     return q, k, v
 
 

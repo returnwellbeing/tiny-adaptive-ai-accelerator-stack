@@ -3,15 +3,15 @@ import jax.numpy as jnp
 
 
 def repeat_kv(hidden_states, num_repeats=4):
-    batch, seq, num_kv_heads, head_dim = hidden_states.shape
-    expanded = hidden_states[:, :, :, None, :]
+    batch, num_kv_heads, seq, head_dim = hidden_states.shape
+    expanded = hidden_states[:, :, None, :, :]
     repeated = jnp.broadcast_to(
         expanded,
-        (batch, seq, num_kv_heads, num_repeats, head_dim),
+        (batch, num_kv_heads, num_repeats, seq, head_dim),
     )
     return jnp.reshape(
         repeated,
-        (batch, seq, num_kv_heads * num_repeats, head_dim),
+        (batch, num_kv_heads * num_repeats, seq, head_dim),
     )
 
 
@@ -23,7 +23,7 @@ def main():
     num_repeats = 4
 
     hidden_states = jnp.ones(
-        (batch, seq, num_kv_heads, head_dim),
+        (batch, num_kv_heads, seq, head_dim),
         dtype=jnp.float32,
     )
 

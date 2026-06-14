@@ -77,8 +77,8 @@ During prefill:
 
 ```text
 input tokens: many
-new RoPE-applied K span: [B, S, num_kv_heads, head_dim]
-new projected V span:    [B, S, num_kv_heads, head_dim]
+new RoPE-applied K span: [B, num_kv_heads, S, head_dim]
+new projected V span:    [B, num_kv_heads, S, head_dim]
 cache update: write S positions
 attention pattern: causal [S x S]
 ```
@@ -99,8 +99,8 @@ During decode:
 
 ```text
 input token: one
-new RoPE-applied K: [B, 1, num_kv_heads, head_dim]
-new projected V:    [B, 1, num_kv_heads, head_dim]
+new RoPE-applied K: [B, num_kv_heads, 1, head_dim]
+new projected V:    [B, num_kv_heads, 1, head_dim]
 cache update: write one position
 attention pattern: [1 x cache_length]
 ```

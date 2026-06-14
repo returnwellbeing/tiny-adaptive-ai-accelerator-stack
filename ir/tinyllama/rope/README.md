@@ -47,8 +47,8 @@ head_dim = 8
 Inputs:
 
 ```text
-q:   [1, 16, 8, 8]
-k:   [1, 16, 2, 8]
+q:   [1, 8, 16, 8]
+k:   [1, 2, 16, 8]
 cos: [16, 8]
 sin: [16, 8]
 ```
@@ -56,9 +56,13 @@ sin: [16, 8]
 Outputs:
 
 ```text
-q_rotated: [1, 16, 8, 8]
-k_rotated: [1, 16, 2, 8]
+q_rotated: [1, 8, 16, 8]
+k_rotated: [1, 2, 16, 8]
 ```
+
+Q and K use the Hugging Face attention layout
+`[B, heads, S, head_dim]`. The position tables are broadcast across
+the batch and head dimensions.
 
 ## Workload Pattern
 

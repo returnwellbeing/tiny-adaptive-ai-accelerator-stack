@@ -139,9 +139,9 @@ q_weight:      [2048, 2048]
 k_weight:      [2048, 256]
 v_weight:      [2048, 256]
 
-q:             [1, 16, 32, 64]
-k:             [1, 16, 4, 64]
-v:             [1, 16, 4, 64]
+q:             [1, 32, 16, 64]
+k:             [1, 4, 16, 64]
+v:             [1, 4, 16, 64]
 ```
 
 For the current QKV workload:
@@ -165,8 +165,8 @@ repeat_kv workload:
 ```text
 workloads/tinyllama/repeat_kv_jax.py
 
-compact K or V: [1, 16, 2, 8]
-repeated K or V: [1, 16, 8, 8]
+compact K or V:  [1, 2, 16, 8]
+repeated K or V: [1, 8, 16, 8]
 num_repeats = 8 / 2 = 4
 ```
 
