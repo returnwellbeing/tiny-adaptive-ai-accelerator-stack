@@ -214,6 +214,60 @@ Status:
   implemented prefill score-only workload
 ```
 
+Prefill causal-mask application
+
+```text
+HF attention step:
+  apply causal attention mask before softmax
+
+Minimal JAX:
+  workloads/tinyllama/causal_mask_jax.py
+
+StableHLO:
+  ir/tinyllama/causal_mask/causal_mask.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.broadcast_in_dim
+  stablehlo.select
+
+Hardware view:
+  elementwise and layout-sensitive
+  mask materialization costs memory bandwidth
+  mask application is a softmax fusion candidate
+
+Status:
+  implemented prefill causal-mask application workload
+```
+
+Attention softmax
+
+```text
+HF attention step:
+  softmax attention scores over the key sequence dimension
+
+Minimal JAX:
+  workloads/tinyllama/attention_softmax_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_softmax/attention_softmax.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.reduce
+  stablehlo.maximum
+  stablehlo.subtract
+  stablehlo.exponential
+  stablehlo.add
+  stablehlo.divide
+
+Hardware view:
+  reduction-heavy and elementwise-heavy
+  reduction width grows with key sequence or cache length
+  causal-mask and softmax fusion can reduce memory traffic
+
+Status:
+  implemented attention softmax workload
+```
+
 Planned mappings
 ----------------
 

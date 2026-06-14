@@ -199,3 +199,25 @@ M = query_seq = 16
 K = head_dim = 8
 N = key_seq = 16
 ```
+
+Causal-mask application workload:
+
+```text
+workloads/tinyllama/causal_mask_jax.py
+
+scores:        [1, 8, 16, 16]
+causal_mask:   [16, 16]
+masked_scores: [1, 8, 16, 16]
+```
+
+The boolean mask is broadcast across batch and attention heads.
+
+Attention softmax workload:
+
+```text
+workloads/tinyllama/attention_softmax_jax.py
+
+masked_scores:     [1, 8, 16, 16]
+attention_weights: [1, 8, 16, 16]
+reduction axis:    key_seq, the final dimension
+```

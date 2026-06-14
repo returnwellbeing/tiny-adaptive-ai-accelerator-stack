@@ -33,6 +33,7 @@ def classify_op(op: str) -> str:
         "stablehlo.log",
         "stablehlo.maximum",
         "stablehlo.minimum",
+        "stablehlo.select",
     }:
         return "elementwise"
 
@@ -323,7 +324,7 @@ def detect_workload_tags(class_counts: Counter, op_counts: Counter) -> list[str]
         tags.append("GEMM-heavy")
     if class_counts["reduction"] > 0:
         tags.append("reduction-heavy")
-    if (
+    if op_counts["stablehlo.select"] > 0 or (
         class_counts["elementwise"] >= 2
         and class_counts["elementwise"] > max(class_counts["compute-heavy"], class_counts["reduction"])
     ):
@@ -436,7 +437,7 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
 
     if has_reduction:
         print("  - Reduction is present: expect latency and memory-access sensitivity.")
-        print("  - For RMSNorm, this usually corresponds to mean/sum over hidden dimension.")
+        print("  - The reduced dimensions determine synchronization width and data reuse.")
 
     if elementwise_count > 0:
         print(f"  - Elementwise ops are present: count={elementwise_count}.")
@@ -452,7 +453,7 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
         print("  - Operand provenance distinguishes projections from activation x activation attention matmuls.")
         print("  - Useful accelerator questions: tile sizes, array utilization, data reuse, memory bandwidth.")
     elif has_reduction:
-        print("  - RMSNorm is typically bandwidth/reduction sensitive, not peak-GEMM limited.")
+        print("  - Reduction workloads are typically latency and bandwidth sensitive.")
         print("  - A good backend should fuse reduction-adjacent elementwise ops where possible.")
         print("  - Useful accelerator questions: reduction latency, vector width, memory bandwidth, fusion.")
     else:

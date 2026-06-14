@@ -101,6 +101,26 @@ The causal mask is visible in the reference model as a framework-level
 attention mask. In a minimal accelerator model, this should become an
 explicit input or a generated static mask when shapes are fixed.
 
+The current minimal causal-mask workload models it as an explicit
+boolean `[S, S]` input shared across batch and heads:
+
+```text
+masked_scores = where(causal_mask, scores, -inf)
+```
+
+This keeps mask application visible while leaving mask generation and
+runtime policy outside the workload.
+
+Softmax then normalizes each query row over the key sequence:
+
+```text
+masked_scores [B, num_heads, query_seq, key_seq]
+-> attention_weights [B, num_heads, query_seq, key_seq]
+```
+
+The reduction width is `key_seq`. During decode, this corresponds to
+the visible cache length and grows as tokens are generated.
+
 ## Decode Attention Path
 
 Decode processes one new token at a time, usually with:

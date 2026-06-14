@@ -169,6 +169,10 @@ Representative files:
 ```text
 workloads/tinyllama/attention_scores_prefill_jax.py
 ir/tinyllama/attention_scores_prefill/attention_scores_prefill.stablehlo.mlir
+workloads/tinyllama/causal_mask_jax.py
+ir/tinyllama/causal_mask/causal_mask.stablehlo.mlir
+workloads/tinyllama/attention_softmax_jax.py
+ir/tinyllama/attention_softmax/attention_softmax.stablehlo.mlir
 ```
 
 StableHLO/runtime character:
@@ -190,6 +194,28 @@ Q @ K^T / sqrt(head_dim)
 
 This is activation x activation `dot_general`, unlike projection
 workloads that are activation x weight.
+
+Causal-mask application:
+
+```text
+scores [B, heads, S, S] + boolean mask [S, S]
+-> masked scores [B, heads, S, S]
+```
+
+The mask is broadcast across batch and heads. It is an elementwise,
+layout-sensitive workload and is a natural fusion candidate for
+softmax.
+
+Attention softmax:
+
+```text
+masked scores [B, heads, query_seq, key_seq]
+-> attention weights [B, heads, query_seq, key_seq]
+```
+
+Softmax reduces over `key_seq` for both maximum and sum. It combines
+reduction and elementwise operations, and benefits from fusion with
+causal-mask application.
 
 Hardware/runtime view:
 
