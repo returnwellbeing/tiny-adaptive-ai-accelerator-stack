@@ -141,6 +141,31 @@ encoding. Only the newly generated K should receive RoPE using the
 current `cache_position`; previously cached K should not receive RoPE
 again.
 
+## Grouped-Query Attention and repeat_kv
+
+TinyLlama has more query heads than KV heads:
+
+```text
+num_attention_heads = 32
+num_key_value_heads = 4
+```
+
+K/V cache should remain compact with 4 KV heads. For attention
+computation, each compact KV head is shared by a group of query heads.
+The reference `repeat_kv` helper expresses this sharing as an expansion:
+
+```text
+compact cached K/V
+-> repeat_kv
+-> query-head-aligned K/V
+-> attention score/value matmul
+```
+
+Do not store repeated K/V heads in the cache. That would increase cache
+storage and read bandwidth by the repeat factor. A backend may also
+avoid materializing the repeated tensors and implement the sharing in
+indexing or attention-kernel logic.
+
 ## KV Cache Shape
 
 A practical explicit cache tensor shape for this project is:

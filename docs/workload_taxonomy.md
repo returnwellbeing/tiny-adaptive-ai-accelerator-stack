@@ -136,6 +136,30 @@ V cache stores projected value states.
 Previously cached K should not receive RoPE again during decode.
 ```
 
+### Grouped-Query Head Expansion
+
+Representative files:
+
+```text
+workloads/tinyllama/repeat_kv_jax.py
+ir/tinyllama/repeat_kv/repeat_kv.stablehlo.mlir
+```
+
+StableHLO/runtime character:
+
+- expands compact K/V heads to match query head count
+- uses broadcast and reshape
+- no GEMM, reduction, or elementwise arithmetic
+- layout-sensitive and memory-sensitive
+
+Runtime rule:
+
+```text
+keep K/V cache compact at num_kv_heads
+apply repeat_kv after cache read and before attention matmul
+avoid physically materializing repeated K/V when possible
+```
+
 ### Prefill Attention
 
 Prefill processes multiple prompt tokens at once.
@@ -143,6 +167,7 @@ Prefill processes multiple prompt tokens at once.
 StableHLO/runtime character:
 
 - QKV projection is GEMM-heavy
+- compact K/V heads are expanded for grouped-query attention
 - attention score matmul is activation x activation
 - causal mask is applied across `[S, S]`
 - softmax introduces reduction and elementwise operations
@@ -162,6 +187,7 @@ StableHLO/runtime character:
 
 - QKV projection for one token
 - read previous K/V cache
+- expand compact cached K/V heads for grouped-query attention
 - attention score shape is conceptually `[B, heads, 1, cache_length]`
 - update one cache position
 

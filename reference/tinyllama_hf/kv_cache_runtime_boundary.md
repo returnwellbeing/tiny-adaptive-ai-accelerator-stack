@@ -59,6 +59,18 @@ The cache should not store raw `hidden_states`, and it should not store
 raw K before RoPE. The runtime boundary should treat cached K as already
 position-encoded.
 
+The cache should also remain compact at `num_key_value_heads`. For
+grouped-query attention, `repeat_kv` belongs after cache read and before
+attention matmul:
+
+```text
+compact K/V cache
+-> repeat_kv or equivalent shared-head indexing
+-> attention computation
+```
+
+Storing repeated K/V heads would waste cache capacity and bandwidth.
+
 ## Prefill Boundary
 
 During prefill:

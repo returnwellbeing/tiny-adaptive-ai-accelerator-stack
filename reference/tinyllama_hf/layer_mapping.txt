@@ -161,6 +161,32 @@ Status:
   implemented RoPE-only workload
 ```
 
+Llama repeat_kv
+
+```text
+HF function:
+  repeat_kv
+
+Minimal JAX:
+  workloads/tinyllama/repeat_kv_jax.py
+
+StableHLO:
+  ir/tinyllama/repeat_kv/repeat_kv.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.broadcast_in_dim
+  stablehlo.reshape
+
+Hardware view:
+  layout-sensitive
+  expands compact K/V heads for query-head-aligned attention
+  compact K/V cache should remain at num_key_value_heads
+  optimized kernels may avoid materializing repeated tensors
+
+Status:
+  implemented repeat_kv-only workload
+```
+
 Planned mappings
 ----------------
 

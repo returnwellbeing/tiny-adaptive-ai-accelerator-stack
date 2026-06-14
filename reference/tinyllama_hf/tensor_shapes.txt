@@ -159,3 +159,24 @@ q projection: M = 16, K = 2048, N = 2048
 k projection: M = 16, K = 2048, N = 256
 v projection: M = 16, K = 2048, N = 256
 ```
+
+repeat_kv workload:
+
+```text
+workloads/tinyllama/repeat_kv_jax.py
+
+compact K or V: [1, 16, 2, 8]
+repeated K or V: [1, 16, 8, 8]
+num_repeats = 8 / 2 = 4
+```
+
+For TinyLlama reference heads:
+
+```text
+num_attention_heads = 32
+num_key_value_heads = 4
+num_repeats = 32 / 4 = 8
+```
+
+The cache remains compact at `num_key_value_heads`. Repetition is for
+attention computation, not cache storage.
