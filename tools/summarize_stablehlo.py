@@ -16,6 +16,7 @@ FLOW_HINT_OPS = {
     "stablehlo.reshape",
     "stablehlo.transpose",
     "stablehlo.broadcast_in_dim",
+    "stablehlo.dynamic_update_slice",
 }
 
 
@@ -49,6 +50,7 @@ def classify_op(op: str) -> str:
         "stablehlo.transpose",
         "stablehlo.slice",
         "stablehlo.dynamic_slice",
+        "stablehlo.dynamic_update_slice",
         "stablehlo.concatenate",
     }:
         return "shape/layout"
@@ -331,6 +333,8 @@ def detect_workload_tags(class_counts: Counter, op_counts: Counter) -> list[str]
         tags.append("elementwise-heavy")
     if class_counts["shape/layout"] > 0:
         tags.append("layout-sensitive")
+    if op_counts["stablehlo.dynamic_update_slice"] > 0:
+        tags.append("cache-update")
     if not tags:
         tags.append("unclassified")
     return tags
@@ -428,6 +432,7 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
     has_reduction = class_counts["reduction"] > 0
     has_dot = op_counts["stablehlo.dot_general"] > 0
     has_broadcast = op_counts["stablehlo.broadcast_in_dim"] > 0
+    has_dynamic_update = op_counts["stablehlo.dynamic_update_slice"] > 0
     elementwise_count = class_counts["elementwise"]
 
     if has_dot:
@@ -445,6 +450,8 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
 
     if has_broadcast:
         print("  - Broadcast is present: scalar/vector values are expanded across tensor dimensions.")
+    if has_dynamic_update:
+        print("  - dynamic_update_slice is present: this models explicit tensor state update.")
 
     print()
     print("  Hardware/runtime note:")
@@ -456,6 +463,9 @@ def interpret_workload(class_counts: Counter, op_counts: Counter) -> None:
         print("  - Reduction workloads are typically latency and bandwidth sensitive.")
         print("  - A good backend should fuse reduction-adjacent elementwise ops where possible.")
         print("  - Useful accelerator questions: reduction latency, vector width, memory bandwidth, fusion.")
+    elif has_dynamic_update:
+        print("  - Cache update workloads expose indexed writes and buffer aliasing opportunities.")
+        print("  - Useful accelerator questions: write bandwidth, address generation, output aliasing.")
     else:
         print("  - Elementwise-only workloads are usually bandwidth and fusion sensitive.")
         print("  - Useful accelerator questions: vector width, fusion, memory traffic, activation latency.")

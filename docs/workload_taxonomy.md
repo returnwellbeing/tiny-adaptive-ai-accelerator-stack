@@ -175,6 +175,8 @@ workloads/tinyllama/softmax_jax.py
 ir/tinyllama/softmax/softmax.stablehlo.mlir
 workloads/tinyllama/attention_prefill_jax.py
 ir/tinyllama/attention_prefill/attention_prefill.stablehlo.mlir
+workloads/tinyllama/attention_prefill_cache_update_jax.py
+ir/tinyllama/attention_prefill_cache_update/attention_prefill_cache_update.stablehlo.mlir
 ```
 
 StableHLO/runtime character:
@@ -232,6 +234,18 @@ This combines grouped-query `repeat_kv`, two activation x activation
 batched matmuls, causal masking, and softmax. It is GEMM-heavy,
 reduction-heavy, and layout-sensitive.
 
+Prefill cache construction:
+
+```text
+new_k/new_v [B, kv_heads, S, D]
+cache       [B, kv_heads, T_MAX, D]
+-> updated cache with positions [0:S] written
+```
+
+This is a bulk cache write modeled with `dynamic_update_slice`. It is
+bandwidth and layout sensitive, and it is deliberately separate from
+prefill compute so cache construction is visible as its own workload.
+
 Hardware/runtime view:
 
 - more throughput-oriented than decode
@@ -242,6 +256,15 @@ Hardware/runtime view:
 
 Decode processes one token at a time.
 
+Representative files:
+
+```text
+workloads/tinyllama/attention_decode_jax.py
+ir/tinyllama/attention_decode/attention_decode.stablehlo.mlir
+workloads/tinyllama/attention_decode_cache_update_jax.py
+ir/tinyllama/attention_decode_cache_update/attention_decode_cache_update.stablehlo.mlir
+```
+
 StableHLO/runtime character:
 
 - QKV projection for one token
@@ -249,6 +272,30 @@ StableHLO/runtime character:
 - expand compact cached K/V heads for grouped-query attention
 - attention score shape is conceptually `[B, heads, 1, cache_length]`
 - update one cache position
+
+Decode compute:
+
+```text
+q [B, heads, 1, D]
+k/v visible cache [B, kv_heads, T_visible, D]
+-> context [B, heads, 1, D]
+```
+
+This is vector-matrix attention. It still uses batched `dot_general`,
+but `M = 1`, which can limit systolic array utilization.
+The visible cache is assumed to already include the current token after
+the decode cache-update workload.
+
+Decode cache update:
+
+```text
+new_k/new_v [B, kv_heads, 1, D]
+cache       [B, kv_heads, T_MAX, D]
+cache_position
+-> updated cache
+```
+
+This is a small indexed write modeled with `dynamic_update_slice`.
 
 Hardware/runtime view:
 

@@ -236,3 +236,46 @@ context: [1, 8, 16, 8]
 This workload starts after QKV projection, reshape/transpose, and RoPE.
 It uses attention layout `[B, heads, S, head_dim]`, not projection
 layout `[B, S, heads, head_dim]`.
+
+Prefill cache update workload:
+
+```text
+workloads/tinyllama/attention_prefill_cache_update_jax.py
+
+new_k:   [1, 2, 16, 8]
+new_v:   [1, 2, 16, 8]
+k_cache: [1, 2, 32, 8]
+v_cache: [1, 2, 32, 8]
+
+updated_k_cache: [1, 2, 32, 8]
+updated_v_cache: [1, 2, 32, 8]
+```
+
+Decode attention workload:
+
+```text
+workloads/tinyllama/attention_decode_jax.py
+
+q:       [1, 8, 1, 8]
+k:       [1, 2, 16, 8]
+v:       [1, 2, 16, 8]
+context: [1, 8, 1, 8]
+```
+
+For decode compute, `k` and `v` are visible cache tensors that already
+include the current token position.
+
+Decode cache update workload:
+
+```text
+workloads/tinyllama/attention_decode_cache_update_jax.py
+
+new_k:          [1, 2, 1, 8]
+new_v:          [1, 2, 1, 8]
+k_cache:        [1, 2, 32, 8]
+v_cache:        [1, 2, 32, 8]
+cache_position: scalar i32
+
+updated_k_cache: [1, 2, 32, 8]
+updated_v_cache: [1, 2, 32, 8]
+```

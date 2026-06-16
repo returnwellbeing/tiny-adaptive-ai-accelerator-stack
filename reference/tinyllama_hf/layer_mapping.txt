@@ -301,6 +301,84 @@ Status:
   implemented full prefill attention workload
 ```
 
+Prefill K/V cache construction
+
+```text
+HF attention/cache step:
+  write prompt K/V span into cache during prefill
+
+Minimal JAX:
+  workloads/tinyllama/attention_prefill_cache_update_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_prefill_cache_update/attention_prefill_cache_update.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dynamic_update_slice
+
+Hardware view:
+  bulk cache write
+  bandwidth and layout sensitive
+  may be in-place after bufferization if aliasing is legal
+
+Status:
+  implemented prefill cache-update-only workload
+```
+
+Decode attention compute
+
+```text
+HF attention/cache step:
+  compute one-token attention using updated visible K/V cache
+
+Minimal JAX:
+  workloads/tinyllama/attention_decode_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_decode/attention_decode.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dot_general
+  stablehlo.reduce
+  stablehlo.exponential
+  stablehlo.divide
+
+Hardware view:
+  vector-matrix attention
+  K/V cache read bandwidth matters
+  M = 1 can underutilize large systolic arrays
+  input K/V already include the current token position
+
+Status:
+  implemented decode compute-only workload
+```
+
+Decode K/V cache update
+
+```text
+HF attention/cache step:
+  write new token K/V at cache_position during decode
+
+Minimal JAX:
+  workloads/tinyllama/attention_decode_cache_update_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_decode_cache_update/attention_decode_cache_update.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dynamic_update_slice
+  stablehlo.compare
+  stablehlo.select
+
+Hardware view:
+  small indexed cache write
+  cache_position address generation is explicit
+  output aliasing determines whether this becomes in-place
+
+Status:
+  implemented decode cache-update-only workload
+```
+
 Planned mappings
 ----------------
 
@@ -343,11 +421,17 @@ Subparts:
 Minimal JAX:
   workloads/tinyllama/qkv_jax.py for projection-only preparation
   workloads/tinyllama/attention_prefill_jax.py for prefill attention
+  workloads/tinyllama/attention_decode_jax.py for decode attention
+  workloads/tinyllama/attention_prefill_cache_update_jax.py for prefill cache construction
+  workloads/tinyllama/attention_decode_cache_update_jax.py for decode cache update
 
 StableHLO:
   ir/tinyllama/qkv/qkv.stablehlo.mlir for projection-only preparation
   ir/tinyllama/attention_prefill/attention_prefill.stablehlo.mlir for prefill attention
+  ir/tinyllama/attention_decode/attention_decode.stablehlo.mlir for decode attention
+  ir/tinyllama/attention_prefill_cache_update/attention_prefill_cache_update.stablehlo.mlir for prefill cache construction
+  ir/tinyllama/attention_decode_cache_update/attention_decode_cache_update.stablehlo.mlir for decode cache update
 
 Status:
-  prefill attention implemented; pending decode and KV cache update workloads
+  prefill/decode compute and cache-update workload traces implemented
 ```

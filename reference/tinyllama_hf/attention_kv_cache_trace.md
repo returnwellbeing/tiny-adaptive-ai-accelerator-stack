@@ -121,6 +121,20 @@ masked_scores [B, num_heads, query_seq, key_seq]
 The reduction width is `key_seq`. During decode, this corresponds to
 the visible cache length and grows as tokens are generated.
 
+In this project, prefill is split into two workload views:
+
+```text
+attention_prefill_jax.py
+  compute-only causal attention
+
+attention_prefill_cache_update_jax.py
+  bulk K/V cache construction for positions [0:S]
+```
+
+The split is intentional. In a serving runtime, both happen in the
+prefill phase, but separating them makes compute behavior and cache
+write behavior visible independently in StableHLO.
+
 ## Decode Attention Path
 
 Decode processes one new token at a time, usually with:
@@ -152,6 +166,30 @@ Decode is latency sensitive because each token depends on the previous
 token. KV cache read bandwidth and cache update granularity become
 visible bottlenecks.
 
+In this project, decode is split into two workload views:
+
+```text
+attention_decode_jax.py
+  compute-only decode attention using updated visible K/V cache
+
+attention_decode_cache_update_jax.py
+  incremental K/V cache update at cache_position
+```
+
+The decode ordering used here is update-first:
+
+```text
+attention_decode_cache_update:
+  old cache + new_k/new_v -> updated cache
+
+attention_decode:
+  q + updated k/v -> context
+```
+
+Decode compute reads the compact visible K/V cache, applies `repeat_kv`
+for query-head-aligned attention, and produces one-token context. The
+visible cache already includes the current token position.
+
 Important RoPE/cache rule:
 
 ```text
@@ -171,6 +209,9 @@ In decode mode, previously cached K already includes positional
 encoding. Only the newly generated K should receive RoPE using the
 current `cache_position`; previously cached K should not receive RoPE
 again.
+
+Cache update workloads assume the incoming K tensor is already
+RoPE-applied. They do not implement RoPE internally.
 
 ## Grouped-Query Attention and repeat_kv
 

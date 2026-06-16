@@ -93,6 +93,21 @@ Runtime concerns:
 Prefill is more throughput oriented than decode because multiple prompt
 tokens are available at once.
 
+This project traces prefill as two separate views:
+
+```text
+attention_prefill_jax.py
+  q, k, v -> context
+
+attention_prefill_cache_update_jax.py
+  new_k, new_v, k_cache_in, v_cache_in
+  -> k_cache_out, v_cache_out
+```
+
+The second view models cache construction with `dynamic_update_slice`.
+The initial cache tensor may be zero or dummy-filled; the valid region
+after prefill is `[0:S]`.
+
 ## Decode Boundary
 
 During decode:
@@ -118,6 +133,30 @@ Runtime concerns:
 Decode is often dominated by small batch size, dependency chain latency,
 and KV cache bandwidth.
 
+This project traces decode as two separate views:
+
+```text
+attention_decode_jax.py
+  q, k, v -> context
+
+attention_decode_cache_update_jax.py
+  new_k, new_v, k_cache_in, v_cache_in, cache_position
+  -> k_cache_out, v_cache_out
+```
+
+This project uses an update-first decode model:
+
+```text
+old cache + new_k/new_v
+-> attention_decode_cache_update
+-> updated visible cache
+-> attention_decode
+```
+
+The compute view reads visible cache tensors that already include the
+current token position. The update view models a small
+`cache_position`-dependent indexed write.
+
 ## Proposed Explicit Tensor Contract
 
 When this project implements cache workloads, prefer an explicit JAX
@@ -137,6 +176,25 @@ attention_decode(
   k_cache_out,
   v_cache_out,
 )
+```
+
+For cache-update-only traces, use smaller explicit contracts:
+
+```text
+attention_prefill_cache_update(
+  new_k,
+  new_v,
+  k_cache_in,
+  v_cache_in,
+) -> (k_cache_out, v_cache_out)
+
+attention_decode_cache_update(
+  new_k,
+  new_v,
+  k_cache_in,
+  v_cache_in,
+  cache_position,
+) -> (k_cache_out, v_cache_out)
 ```
 
 This is not how the Hugging Face reference API looks. That is deliberate.
