@@ -1,7 +1,7 @@
-# TinyLlama Attention Softmax StableHLO
+# TinyLlama Softmax StableHLO
 
 This directory contains the StableHLO MLIR generated from a minimal
-attention softmax workload.
+softmax workload for the attention path.
 
 Softmax converts masked attention scores into probabilities along the
 final `key_seq` dimension:
@@ -15,19 +15,19 @@ attention_weights = softmax(masked_scores, axis=-1)
 From the repository root:
 
 ```bash
-python workloads/tinyllama/attention_softmax_jax.py > ir/tinyllama/attention_softmax/attention_softmax.stablehlo.mlir
+python workloads/tinyllama/softmax_jax.py > ir/tinyllama/softmax/softmax.stablehlo.mlir
 ```
 
 Source workload:
 
 ```text
-workloads/tinyllama/attention_softmax_jax.py
+workloads/tinyllama/softmax_jax.py
 ```
 
 ## Summarize
 
 ```bash
-python tools/summarize_stablehlo.py ir/tinyllama/attention_softmax/attention_softmax.stablehlo.mlir
+python tools/summarize_stablehlo.py ir/tinyllama/softmax/softmax.stablehlo.mlir
 ```
 
 ## Tensor Shapes

@@ -83,5 +83,5 @@ length.
 The next workload is softmax over the final key dimension:
 
 ```text
-workloads/tinyllama/attention_softmax_jax.py
+workloads/tinyllama/softmax_jax.py
 ```

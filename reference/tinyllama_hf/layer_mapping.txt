@@ -246,10 +246,10 @@ HF attention step:
   softmax attention scores over the key sequence dimension
 
 Minimal JAX:
-  workloads/tinyllama/attention_softmax_jax.py
+  workloads/tinyllama/softmax_jax.py
 
 StableHLO:
-  ir/tinyllama/attention_softmax/attention_softmax.stablehlo.mlir
+  ir/tinyllama/softmax/softmax.stablehlo.mlir
 
 Key StableHLO ops:
   stablehlo.reduce

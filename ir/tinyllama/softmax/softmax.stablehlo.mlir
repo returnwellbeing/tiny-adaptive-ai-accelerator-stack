@@ -1,4 +1,4 @@
-module @jit_attention_softmax attributes {mhlo.num_partitions = 1 : i32, mhlo.num_replicas = 1 : i32} {
+module @jit_softmax attributes {mhlo.num_partitions = 1 : i32, mhlo.num_replicas = 1 : i32} {
   func.func public @main(%arg0: tensor<1x8x16x16xf32>) -> (tensor<1x8x16x16xf32> {jax.result_info = "result"}) {
     %cst = stablehlo.constant dense<0xFF800000> : tensor<f32>
     %0 = stablehlo.reduce(%arg0 init: %cst) applies stablehlo.maximum across dimensions = [3] : (tensor<1x8x16x16xf32>, tensor<f32>) -> tensor<1x8x16xf32>

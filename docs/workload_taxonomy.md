@@ -171,8 +171,8 @@ workloads/tinyllama/attention_scores_prefill_jax.py
 ir/tinyllama/attention_scores_prefill/attention_scores_prefill.stablehlo.mlir
 workloads/tinyllama/causal_mask_jax.py
 ir/tinyllama/causal_mask/causal_mask.stablehlo.mlir
-workloads/tinyllama/attention_softmax_jax.py
-ir/tinyllama/attention_softmax/attention_softmax.stablehlo.mlir
+workloads/tinyllama/softmax_jax.py
+ir/tinyllama/softmax/softmax.stablehlo.mlir
 ```
 
 StableHLO/runtime character:
