@@ -268,6 +268,39 @@ Status:
   implemented attention softmax workload
 ```
 
+Full prefill attention
+
+```text
+HF attention step:
+  prefill attention after q/k/v projection, reshape, transpose, and RoPE
+
+Minimal JAX:
+  workloads/tinyllama/attention_prefill_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_prefill/attention_prefill.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dot_general
+  stablehlo.broadcast_in_dim
+  stablehlo.reshape
+  stablehlo.compare
+  stablehlo.select
+  stablehlo.reduce
+  stablehlo.exponential
+  stablehlo.divide
+
+Hardware view:
+  matrix-matrix prefill attention
+  S x S score tensor growth
+  softmax reduction over key sequence
+  grouped-query K/V expansion or logical sharing
+  no decode cache update in this workload
+
+Status:
+  implemented full prefill attention workload
+```
+
 Planned mappings
 ----------------
 
@@ -309,10 +342,12 @@ Subparts:
 
 Minimal JAX:
   workloads/tinyllama/qkv_jax.py for projection-only preparation
+  workloads/tinyllama/attention_prefill_jax.py for prefill attention
 
 StableHLO:
   ir/tinyllama/qkv/qkv.stablehlo.mlir for projection-only preparation
+  ir/tinyllama/attention_prefill/attention_prefill.stablehlo.mlir for prefill attention
 
 Status:
-  pending full attention and KV cache update workloads
+  prefill attention implemented; pending decode and KV cache update workloads
 ```

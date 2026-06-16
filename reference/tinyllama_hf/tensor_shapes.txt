@@ -221,3 +221,18 @@ masked_scores:     [1, 8, 16, 16]
 attention_weights: [1, 8, 16, 16]
 reduction axis:    key_seq, the final dimension
 ```
+
+Full prefill attention workload:
+
+```text
+workloads/tinyllama/attention_prefill_jax.py
+
+q:       [1, 8, 16, 8]
+k:       [1, 2, 16, 8]
+v:       [1, 2, 16, 8]
+context: [1, 8, 16, 8]
+```
+
+This workload starts after QKV projection, reshape/transpose, and RoPE.
+It uses attention layout `[B, heads, S, head_dim]`, not projection
+layout `[B, S, heads, head_dim]`.

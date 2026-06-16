@@ -173,6 +173,8 @@ workloads/tinyllama/causal_mask_jax.py
 ir/tinyllama/causal_mask/causal_mask.stablehlo.mlir
 workloads/tinyllama/softmax_jax.py
 ir/tinyllama/softmax/softmax.stablehlo.mlir
+workloads/tinyllama/attention_prefill_jax.py
+ir/tinyllama/attention_prefill/attention_prefill.stablehlo.mlir
 ```
 
 StableHLO/runtime character:
@@ -216,6 +218,19 @@ masked scores [B, heads, query_seq, key_seq]
 Softmax reduces over `key_seq` for both maximum and sum. It combines
 reduction and elementwise operations, and benefits from fusion with
 causal-mask application.
+
+Complete prefill attention:
+
+```text
+q [B, heads, S, D]
+k [B, kv_heads, S, D]
+v [B, kv_heads, S, D]
+-> context [B, heads, S, D]
+```
+
+This combines grouped-query `repeat_kv`, two activation x activation
+batched matmuls, causal masking, and softmax. It is GEMM-heavy,
+reduction-heavy, and layout-sensitive.
 
 Hardware/runtime view:
 
