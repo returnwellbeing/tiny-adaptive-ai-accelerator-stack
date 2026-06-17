@@ -99,6 +99,36 @@ K = 64
 N = 256
 ```
 
+Attention output workload:
+
+```text
+workloads/tinyllama/attention_output_jax.py
+
+context:  [1, 8, 16, 8]
+o_weight: [64, 64]
+output:   [1, 16, 64]
+```
+
+This workload converts attention layout back to projection layout before
+the output projection:
+
+```text
+[1, 8, 16, 8]
+-> transpose [1, 16, 8, 8]
+-> reshape   [1, 16, 64]
+-> o_proj    [1, 16, 64]
+```
+
+Residual add workload:
+
+```text
+workloads/tinyllama/residual_add_jax.py
+
+hidden_states: [1, 16, 64]
+residual:      [1, 16, 64]
+output:        [1, 16, 64]
+```
+
 SwiGLU workload:
 
 ```text

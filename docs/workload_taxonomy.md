@@ -48,6 +48,7 @@ Examples:
 ```text
 Linear
 QKV projection
+Attention output projection
 ```
 
 Representative files:
@@ -55,14 +56,18 @@ Representative files:
 ```text
 workloads/tinyllama/linear_jax.py
 workloads/tinyllama/qkv_jax.py
+workloads/tinyllama/attention_output_jax.py
 ir/tinyllama/linear/linear.stablehlo.mlir
 ir/tinyllama/qkv/qkv.stablehlo.mlir
+ir/tinyllama/attention_output/attention_output.stablehlo.mlir
 ```
 
 StableHLO character:
 
 - core operation is `stablehlo.dot_general`
 - QKV adds reshape/layout steps after projection
+- attention output transposes `[B, H, S, D]` context back to
+  `[B, S, H * D]` before `o_proj`
 - source-level Linear and MatMul often lower to the same StableHLO op
 
 Hardware/runtime view:
@@ -73,6 +78,34 @@ Hardware/runtime view:
 - systolic array mapping is relevant
 - operand provenance still matters: activation x weight differs from
   activation x activation even when both appear as `dot_general`
+
+## Residual / Elementwise Boundary Workload
+
+Example:
+
+```text
+Residual add
+```
+
+Representative files:
+
+```text
+workloads/tinyllama/residual_add_jax.py
+ir/tinyllama/residual_add/residual_add.stablehlo.mlir
+```
+
+StableHLO character:
+
+- core operation is `stablehlo.add`
+- no `stablehlo.dot_general`
+- no reduction
+
+Hardware/runtime view:
+
+- elementwise and bandwidth-sensitive
+- often small in isolation
+- important as a fusion boundary between attention output, RMSNorm, and
+  MLP subgraphs
 
 ## Activation / Gated MLP Workload
 

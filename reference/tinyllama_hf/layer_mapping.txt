@@ -67,6 +67,60 @@ Hardware view:
   systolic-array relevant
 ```
 
+LlamaAttention output projection
+
+```text
+HF module:
+  o_proj
+
+Reference expression:
+  attn_output = attn_output.transpose(1, 2).reshape(batch, seq, hidden)
+  attn_output = o_proj(attn_output)
+
+Minimal JAX:
+  workloads/tinyllama/attention_output_jax.py
+
+StableHLO:
+  ir/tinyllama/attention_output/attention_output.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.transpose
+  stablehlo.reshape
+  stablehlo.dot_general
+
+Hardware view:
+  layout-sensitive
+  GEMM-heavy
+  activation x model weight projection
+
+Status:
+  implemented attention-output-only workload
+```
+
+Residual connection
+
+```text
+HF layer locations:
+  after self_attn.o_proj
+  after mlp.down_proj
+
+Minimal JAX:
+  workloads/tinyllama/residual_add_jax.py
+
+StableHLO:
+  ir/tinyllama/residual_add/residual_add.stablehlo.mlir
+
+Key StableHLO op:
+  stablehlo.add
+
+Hardware view:
+  elementwise
+  bandwidth and fusion sensitive
+
+Status:
+  implemented residual-add-only workload
+```
+
 LlamaMLP / SwiGLU
 
 ```text
