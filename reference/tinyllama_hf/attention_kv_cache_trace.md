@@ -190,6 +190,56 @@ Decode compute reads the compact visible K/V cache, applies `repeat_kv`
 for query-head-aligned attention, and produces one-token context. The
 visible cache already includes the current token position.
 
+The integrated decoder-layer workload composes this rule with the rest
+of the layer:
+
+```text
+decoder_layer_prefill_decode_jax.py
+  prefill layer compute
+  prefill K/V cache update
+  decode projection and RoPE
+  decode K/V cache update at cache_position
+  visible cache slice [0:S+1]
+  decode layer compute
+  final norm, lm_head, argmax, embedding lookup
+```
+
+It still follows the update-first decode ordering. The decode attention
+path reads a visible cache that already includes the current token K/V.
+
+The looped decoder-layer workload keeps the same ordering but repeats
+the decode part with static loop-carried cache tensors:
+
+```text
+decoder_layer_prefill_decode_loop_jax.py
+  prefill layer compute
+  prefill K/V cache update
+  for each decode token:
+    decode projection and RoPE
+    decode K/V cache update at cache_position + step
+    masked decode attention over [B, KVH, T_MAX, D]
+    decode layer compute
+    final norm, lm_head, argmax, embedding lookup
+```
+
+Inside the loop, the visible length is represented as a mask rather than
+a smaller slice because each loop iteration must keep the same tensor
+shape.
+
+The generation tail is also traced separately as a primitive workload:
+
+```text
+generation_tail_jax.py
+  decoder output
+  -> final RMSNorm
+  -> lm_head logits
+  -> argmax token id
+  -> embedding lookup for next decode hidden state
+```
+
+Sampling policies such as temperature, top-k, top-p, and random sampling
+are not part of that workload yet.
+
 Important RoPE/cache rule:
 
 ```text

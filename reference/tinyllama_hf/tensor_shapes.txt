@@ -68,6 +68,16 @@ up_proj:   [2048] -> [5632]
 down_proj: [5632] -> [2048]
 ```
 
+Decode output head:
+
+```text
+final norm input/output: [batch, 1, 2048]
+lm_head:                 [2048] -> [32000]
+logits:                  [batch, 1, 32000]
+next_token_id:           [batch, 1]
+embedding lookup:        [32000, 2048] -> [batch, 1, 2048]
+```
+
 Current minimal workload shapes
 -------------------------------
 
@@ -127,6 +137,21 @@ workloads/tinyllama/residual_add_jax.py
 hidden_states: [1, 16, 64]
 residual:      [1, 16, 64]
 output:        [1, 16, 64]
+```
+
+Decode LM head + argmax + embedding workload:
+
+```text
+workloads/tinyllama/generation_tail_jax.py
+
+decoder_output:    [1, 1, 64]
+final_norm_weight: [64]
+lm_head_weight:    [64, 128]
+embedding_table:   [128, 64]
+
+logits:                   [1, 1, 128]
+next_token_id:            [1, 1]
+next_decode_hidden_state: [1, 1, 64]
 ```
 
 SwiGLU workload:
@@ -280,6 +305,108 @@ v_cache: [1, 2, 32, 8]
 updated_k_cache: [1, 2, 32, 8]
 updated_v_cache: [1, 2, 32, 8]
 ```
+
+Decoder layer prefill + single decode workload:
+
+```text
+workloads/tinyllama/decoder_layer_prefill_decode_jax.py
+
+prefill_hidden_states: [1, 16, 64]
+decode_hidden_state:   [1, 1, 64]
+
+input_norm_weight: [64]
+post_norm_weight:  [64]
+final_norm_weight: [64]
+
+q_weight: [64, 64]
+k_weight: [64, 16]
+v_weight: [64, 16]
+o_weight: [64, 64]
+lm_head_weight:  [64, 128]
+embedding_table: [128, 64]
+
+gate_weight: [64, 256]
+up_weight:   [64, 256]
+down_weight: [256, 64]
+
+prefill_cos: [16, 8]
+prefill_sin: [16, 8]
+decode_cos:  [1, 8]
+decode_sin:  [1, 8]
+
+k_cache: [1, 2, 32, 8]
+v_cache: [1, 2, 32, 8]
+cache_position: scalar i32
+
+prefill_output:           [1, 16, 64]
+decode_output:            [1, 1, 64]
+logits:                   [1, 1, 128]
+next_token_id:            [1, 1]
+next_decode_hidden_state: [1, 1, 64]
+k_cache_out:              [1, 2, 32, 8]
+v_cache_out:              [1, 2, 32, 8]
+```
+
+For this workload, decode uses update-first cache semantics:
+
+```text
+decode_k/decode_v [1, 2, 1, 8]
+-> write at cache_position = 16
+-> visible cache slice [1, 2, 17, 8]
+-> decode attention
+```
+
+Decoder layer prefill + decode loop workload:
+
+```text
+workloads/tinyllama/decoder_layer_prefill_decode_loop_jax.py
+
+prefill_hidden_states: [1, 16, 64]
+initial_decode_hidden_state: [1, 1, 64]
+
+input_norm_weight: [64]
+post_norm_weight:  [64]
+final_norm_weight: [64]
+
+q_weight: [64, 64]
+k_weight: [64, 16]
+v_weight: [64, 16]
+o_weight: [64, 64]
+lm_head_weight:  [64, 128]
+embedding_table: [128, 64]
+
+gate_weight: [64, 256]
+up_weight:   [64, 256]
+down_weight: [256, 64]
+
+prefill_cos: [16, 8]
+prefill_sin: [16, 8]
+decode_cos:  [4, 8]
+decode_sin:  [4, 8]
+
+k_cache: [1, 2, 32, 8]
+v_cache: [1, 2, 32, 8]
+cache_position: scalar i32
+
+prefill_output: [1, 16, 64]
+decode_outputs: [1, 4, 64]
+logits:         [1, 4, 128]
+next_token_ids: [1, 4]
+k_cache_out:    [1, 2, 32, 8]
+v_cache_out:    [1, 2, 32, 8]
+```
+
+The loop keeps decode attention K/V shapes fixed at full cache size:
+
+```text
+k_cache/v_cache [1, 2, 32, 8]
+valid_length = cache_position + step + 1
+mask = key_position < valid_length
+```
+
+Only the first decode hidden state is an input to the loop workload.
+Subsequent decode hidden states come from the previous step's
+`argmax -> embedding lookup` tail.
 
 Decode attention workload:
 

@@ -107,6 +107,36 @@ Hardware/runtime view:
 - important as a fusion boundary between attention output, RMSNorm, and
   MLP subgraphs
 
+## Generation Tail Workload
+
+Example:
+
+```text
+final norm + lm_head + argmax + embedding lookup
+```
+
+Representative files:
+
+```text
+workloads/tinyllama/generation_tail_jax.py
+ir/tinyllama/generation_tail/generation_tail.stablehlo.mlir
+```
+
+StableHLO character:
+
+- final RMSNorm reduces over hidden dimension
+- `lm_head` is an activation x model-weight projection
+- argmax reduces over vocabulary dimension using compare/select logic
+- embedding lookup lowers to indexed gather behavior
+
+Hardware/runtime view:
+
+- LM head is GEMM-heavy but decode has `M = 1`
+- argmax/sampling is vocabulary-reduction sensitive
+- embedding lookup is memory/indexing sensitive
+- random sampling policies are intentionally separate from this
+  deterministic argmax workload
+
 ## Activation / Gated MLP Workload
 
 Examples:
@@ -336,6 +366,91 @@ Hardware/runtime view:
 - KV cache read bandwidth matters
 - cache update granularity matters
 - small-M matmuls can underutilize large systolic arrays
+
+### Decoder Layer Prefill + Decode
+
+Representative files:
+
+```text
+workloads/tinyllama/decoder_layer_prefill_decode_jax.py
+ir/tinyllama/decoder_layer_prefill_decode/decoder_layer_prefill_decode.stablehlo.mlir
+workloads/tinyllama/decoder_layer_prefill_decode_loop_jax.py
+ir/tinyllama/decoder_layer_prefill_decode_loop/decoder_layer_prefill_decode_loop.stablehlo.mlir
+```
+
+This workload composes the previously isolated pieces into one
+TinyLlama-style decoder layer trace:
+
+```text
+prefill hidden_states
+-> input_layernorm
+-> QKV projection
+-> RoPE
+-> prefill attention
+-> o_proj
+-> residual
+-> post_attention_layernorm
+-> MLP
+-> residual
+-> prefill K/V cache update
+
+decode hidden_state
+-> input_layernorm
+-> QKV projection
+-> RoPE
+-> decode K/V cache update
+-> visible cache slice
+-> decode attention
+-> o_proj
+-> residual
+-> post_attention_layernorm
+-> MLP
+-> residual
+-> final RMSNorm
+-> lm_head
+-> argmax
+-> embedding lookup
+```
+
+StableHLO/runtime character:
+
+- combines activation x weight projection matmuls and activation x
+  activation attention matmuls
+- includes RMSNorm reductions, RoPE elementwise work, attention softmax
+  reductions, and MLP SwiGLU behavior
+- uses `dynamic_update_slice` for both bulk prefill cache construction
+  and one-token decode cache update
+- uses a static visible-cache slice for the first decode token
+- includes vocabulary projection, deterministic argmax, and embedding
+  lookup for the next decode hidden state
+
+Hardware/runtime view:
+
+- exposes throughput-oriented prefill and latency-sensitive decode in a
+  single layer-level workload
+- shows how small-M decode matmuls coexist with larger prefill and MLP
+  GEMMs
+- keeps K/V cache storage compact at `num_key_value_heads`
+
+Looped decode variant:
+
+```text
+prefill once
+-> for each decode token:
+     project Q/K/V
+     apply RoPE for the token position
+     update K/V cache at cache_position + step
+     run masked decode attention over the full cache buffer
+     run o_proj, residual, post-attention RMSNorm, MLP, residual
+     run final RMSNorm, lm_head, argmax, embedding lookup
+```
+
+The looped workload uses fixed full-cache shapes inside the loop and
+masks invalid key positions with `key_position < valid_length`. This
+keeps loop-carried tensor shapes static while still exposing recurrent
+cache update and cache-read behavior. The embedding lookup result feeds
+the next decode iteration. JAX lowers the decode loop to a loop-like
+StableHLO operation such as `stablehlo.while`.
 
 ### KV Cache Behavior
 

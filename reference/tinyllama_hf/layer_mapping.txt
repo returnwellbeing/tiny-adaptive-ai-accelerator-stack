@@ -121,6 +121,42 @@ Status:
   implemented residual-add-only workload
 ```
 
+Generation tail
+
+```text
+HF modules:
+  final norm
+  lm_head
+  token embedding table
+
+Reference expression:
+  hidden_states = norm(hidden_states)
+  logits = lm_head(hidden_states)
+  next_token_id = argmax(logits)
+  next_hidden_state = embed_tokens(next_token_id)
+
+Minimal JAX:
+  workloads/tinyllama/generation_tail_jax.py
+
+StableHLO:
+  ir/tinyllama/generation_tail/generation_tail.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.reduce
+  stablehlo.rsqrt
+  stablehlo.dot_general
+  stablehlo.compare
+  stablehlo.select
+  stablehlo.gather
+
+Hardware view:
+  final normalization, decode-time small-M vocabulary projection,
+  vocabulary reduction for argmax, and indexed embedding lookup
+
+Status:
+  implemented deterministic argmax + embedding workload
+```
+
 LlamaMLP / SwiGLU
 
 ```text
@@ -431,6 +467,96 @@ Hardware view:
 
 Status:
   implemented decode cache-update-only workload
+```
+
+LlamaDecoderLayer prefill + single decode step
+
+```text
+HF module:
+  LlamaDecoderLayer
+
+Subparts:
+  input_layernorm
+  self_attn.q_proj
+  self_attn.k_proj
+  self_attn.v_proj
+  rotary embedding
+  prefill attention
+  prefill K/V cache update
+  decode K/V cache update
+  decode attention
+  self_attn.o_proj
+  residual connections
+  post_attention_layernorm
+  mlp.gate_proj
+  mlp.up_proj
+  mlp.down_proj
+  final norm
+  lm_head
+  argmax
+  embedding lookup
+
+Minimal JAX:
+  workloads/tinyllama/decoder_layer_prefill_decode_jax.py
+
+StableHLO:
+  ir/tinyllama/decoder_layer_prefill_decode/decoder_layer_prefill_decode.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.dot_general
+  stablehlo.reduce
+  stablehlo.broadcast_in_dim
+  stablehlo.transpose
+  stablehlo.reshape
+  stablehlo.dynamic_update_slice
+  stablehlo.slice
+  stablehlo.gather
+
+Hardware view:
+  layer-level mix of projection GEMMs, attention matmuls, reductions,
+  elementwise RoPE/SwiGLU work, residual adds, explicit cache writes,
+  vocabulary projection, argmax reduction, and embedding lookup
+
+Status:
+  implemented prefill plus one decode-token decoder layer workload
+```
+
+LlamaDecoderLayer prefill + decode loop
+
+```text
+HF module:
+  LlamaDecoderLayer
+
+Decode loop model:
+  prefill once
+  scan over decode steps
+  update compact K/V cache at cache_position + step
+  run masked decode attention over the full cache buffer
+  run final norm, lm_head, argmax, and embedding lookup to produce the
+  next step's decode hidden state
+
+Minimal JAX:
+  workloads/tinyllama/decoder_layer_prefill_decode_loop_jax.py
+
+StableHLO:
+  ir/tinyllama/decoder_layer_prefill_decode_loop/decoder_layer_prefill_decode_loop.stablehlo.mlir
+
+Key StableHLO ops:
+  stablehlo.while
+  stablehlo.dynamic_update_slice
+  stablehlo.dot_general
+  stablehlo.compare
+  stablehlo.select
+  stablehlo.reduce
+  stablehlo.gather
+
+Hardware view:
+  recurrent decode path with static cache-buffer shape, per-step cache
+  writes, full-cache reads, validity masking, vocabulary projection, and
+  token embedding feedback
+
+Status:
+  implemented fixed-step decode loop workload
 ```
 
 Planned mappings
